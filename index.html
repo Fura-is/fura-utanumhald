@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fura — Utanumhald</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="topnav-brand">FURA</div>
+  <nav class="material-tabs">
+    <button class="mat-tab active" data-material="dekk">Hjólbarðar</button>
+    <button class="mat-tab" data-material="timbur">Timbur</button>
+    <button class="mat-tab" data-material="malmar">Málmar</button>
+  </nav>
+  <div class="topnav-actions">
+    <button id="btn-settings" class="icon-only-btn" title="Stillingar">⚙</button>
+    <button id="btn-reset" class="icon-only-btn" title="Byrja upp á nýtt">↻</button>
+  </div>
+</header>
+
+<main class="layout">
+
+  <section class="pane pane-left" id="pane-left">
+    <div id="drop-zone" class="drop-zone">
+      <div class="drop-inner">
+        <div class="drop-icon">⇪</div>
+        <div class="drop-title">Dragðu Yfirlit hingað</div>
+        <div class="drop-hint">eða <label for="file-input" class="link">veldu skrá</label></div>
+        <input type="file" id="file-input" accept=".xlsx" hidden>
+      </div>
+    </div>
+
+    <div id="file-status" class="file-status hidden">
+      <div class="status-row">
+        <span class="status-label">Skrá:</span>
+        <span id="status-filename" class="status-value">—</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Mánuður:</span>
+        <span id="status-month" class="status-value">—</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Færslur:</span>
+        <span id="status-rows" class="status-value">—</span>
+      </div>
+      <div class="status-row status-total">
+        <span class="status-label">Samtals:</span>
+        <span id="status-total" class="status-value">—</span>
+      </div>
+    </div>
+
+    <div id="buckets-preview" class="buckets-preview hidden">
+      <h3>Flokkun</h3>
+      <table id="buckets-table" class="buckets-table"></table>
+    </div>
+
+    <div id="download-area" class="download-area hidden">
+      <button id="btn-download" class="primary-btn">Hlaða niður xlsx</button>
+      <button id="btn-copy-summary" class="secondary-btn">Afrita yfirlit</button>
+    </div>
+  </section>
+
+  <section class="pane pane-right">
+    <div id="chat" class="chat">
+      <div id="chat-messages" class="chat-messages"></div>
+      <div id="chat-input-wrap" class="chat-input-wrap hidden">
+        <div id="chat-choices" class="chat-choices"></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div id="settings-modal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h2>Stillingar</h2>
+      <button class="icon-only-btn" id="btn-close-settings">✕</button>
+    </div>
+    <div class="modal-body">
+      <section class="settings-section">
+        <h3>Þröskuldur fyrir Einkaðili</h3>
+        <p class="hint">Færslur frá óþekktum Efniseigendum fara í Einkaðili ef samtala mánaðarins er undir þessu.</p>
+        <div class="input-row">
+          <input type="number" id="setting-threshold" min="0" step="100" value="900">
+          <span>kg</span>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h3>Mapping — Efniseigandi → bakki</h3>
+        <p class="hint">Þekktir Efniseigendur og bakkanöfnin þeirra. Bætt við þegar þú samþykkir nýja í samtalinu.</p>
+        <table id="mapping-table" class="mapping-table"></table>
+        <button id="btn-add-mapping" class="secondary-btn">+ Bæta við</button>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
