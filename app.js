@@ -410,23 +410,49 @@ async function parseYfirlit(file) {
   const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true, dateNF: 'yyyy-mm-dd hh:mm' });
   if (aoa.length < 2) throw new Error("Skjalið er tómt.");
 
+  // Detect column indices from header row (older Yfirlit = 12 cols, newer = 15 cols with Banki/Höfuðbók/Reikningur inserted)
+  const headerRow = aoa[0].map(v => (v || "").toString().trim());
+  const idx = {
+    faersla: headerRow.indexOf("Færsla"),
+    dags: headerRow.indexOf("Dags"),
+    bilnr: headerRow.indexOf("Bílnr"),
+    efnis: headerRow.indexOf("Efniseigandi"),
+    efnis_kt: headerRow.indexOf("Efniseigandi kt."),
+    verk: headerRow.indexOf("Verkstaður"),
+    athug: headerRow.indexOf("Athugasemd"),
+    flutn: headerRow.indexOf("Flutningsaðili"),
+    flutn_kt: headerRow.indexOf("Flutningsaðili kt."),
+    lysing: headerRow.indexOf("Efnislýsing"),
+    fjoldi: headerRow.indexOf("Fjöldi"),
+    thyngd: headerRow.indexOf("Þyngd(kg)"),
+  };
   const rows = [];
   for (let i = 1; i < aoa.length; i++) {
     const row = aoa[i];
-    const [faersla, dags, bilnr, efnis, efnis_kt, verk, athug, flutn, flutn_kt, lysing, fjoldi, thyngd] = row;
+    const dags = row[idx.dags];
+    const thyngd = row[idx.thyngd];
+    const faersla = row[idx.faersla];
     if (!dags || thyngd == null || thyngd === "") continue;
     if (typeof faersla === "string" && faersla.toLowerCase().startsWith("summa")) continue;
+    // Fjöldi: default 1 if empty, parse to int
+    const fjoldiRaw = idx.fjoldi >= 0 ? row[idx.fjoldi] : null;
+    let fjoldi = 1;
+    if (fjoldiRaw != null && fjoldiRaw !== "") {
+      const parsed = parseInt(fjoldiRaw, 10);
+      if (!isNaN(parsed) && parsed > 0) fjoldi = parsed;
+    }
     rows.push({
       faersla: faersla ?? "",
       dags: toDate(dags),
-      bilnr: str(bilnr),
-      efnis: str(efnis),
-      efnis_kt: str(efnis_kt),
-      verk: str(verk),
-      athug: str(athug),
-      flutn: str(flutn),
-      flutn_kt: str(flutn_kt),
-      lysing: str(lysing),
+      bilnr: str(row[idx.bilnr]),
+      efnis: str(row[idx.efnis]),
+      efnis_kt: str(row[idx.efnis_kt]),
+      verk: str(row[idx.verk]),
+      athug: str(row[idx.athug]),
+      flutn: str(row[idx.flutn]),
+      flutn_kt: str(row[idx.flutn_kt]),
+      lysing: str(row[idx.lysing]),
+      fjoldi,
       thyngd: Number(thyngd),
     });
   }
@@ -627,9 +653,10 @@ function finalizeBuckets(perRow, unknownDecisions, knownDecisions, excludedIndic
       }
     }
 
-    if (!buckets[bucket]) buckets[bucket] = { group, total: 0, trips: 0 };
+    if (!buckets[bucket]) buckets[bucket] = { group, total: 0, trips: 0, fjoldi: 0 };
     buckets[bucket].total += row.thyngd;
     buckets[bucket].trips += 1;
+    buckets[bucket].fjoldi += (row.fjoldi || 1);
   });
 
   return { buckets, einkaItems };
@@ -959,7 +986,7 @@ function groupMalmarBuckets(classified) {
   for (const row of classified) {
     const b = buckets[row.bucket] || buckets["Ýmsir"];
     b[row.column] += row.thyngd;
-    if (row.column === "E") b.carCount += 1;
+    if (row.column === "E") b.carCount += (row.fjoldi || 1);  // use Fjöldi from Yfirlit
     b.rows.push(row);
   }
   // Compute ferðir (trips) per bucket: cluster timestamps within 30-min gap
