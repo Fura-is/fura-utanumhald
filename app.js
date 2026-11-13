@@ -188,6 +188,8 @@ const MALMAR_UNKNOWN_DEFAULT_COL = "J";
 // Efniseigandi → bucket (notaður FYRST — ef Efnis matchar, grúppast rófærslan hingað)
 // Þetta er fyrir "svæðisbakka" sem taka allt frá tilteknum eiganda óháð Flutningsaðila.
 const MALMAR_EFNIS_MAPPING = {
+  "fura ehf":                   "Fura ehf.",
+  "fura ehf.":                  "Fura ehf.",
   "fura ehf - akureyri":        "Fura ehf. - AK.",
   "fura ehf. - akureyri":       "Fura ehf. - AK.",
   "sorpa bs.":                  "Sorpa bs. ",
@@ -328,6 +330,65 @@ applyMaterial();
 
 const normKey = s => (s || "").toString().trim().toLowerCase();
 const fmt = n => n == null ? "—" : Math.round(n).toLocaleString("is-IS");
+
+// Normalize company name for fuzzy matching: strip entity suffixes (ehf./hf./ohf./slf./sf./bs.),
+// punctuation, collapse whitespace. Used to detect same-company name variants.
+function normalizeCompanyName(s) {
+  if (!s) return "";
+  return s.toString().toLowerCase()
+    .replace(/\b(ehf|hf|ohf|slf|sf|bs|svf)\.?/g, "")  // entity suffixes
+    .replace(/[.,;\-\/]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Levenshtein edit distance
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const prev = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  const curr = new Array(n + 1);
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    for (let j = 0; j <= n; j++) prev[j] = curr[j];
+  }
+  return prev[n];
+}
+
+// Similarity ratio 0..1 based on normalized Levenshtein distance
+function similarity(a, b) {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  const maxLen = Math.max(a.length, b.length);
+  if (maxLen === 0) return 1;
+  return 1 - levenshtein(a, b) / maxLen;
+}
+
+// Find best fuzzy match in known mapping keys for a given unknown name.
+// Returns {key, bucket, score} or null. Thresholds:
+//   score >= 1.0 after normalization → auto-merge silently
+//   score >= 0.85 → propose merge in chat
+function findSimilarMapping(unknownRaw, mapping) {
+  const unknownNorm = normalizeCompanyName(unknownRaw);
+  if (!unknownNorm) return null;
+  let best = null;
+  for (const [key, val] of Object.entries(mapping)) {
+    const keyNorm = normalizeCompanyName(key);
+    if (!keyNorm) continue;
+    const s = similarity(unknownNorm, keyNorm);
+    if (s === 1) return { key, bucket: val.bucket || val, score: 1 };
+    if (s >= 0.85 && (!best || s > best.score)) {
+      best = { key, bucket: val.bucket || val, score: s };
+    }
+  }
+  return best;
+}
 
 // ============================================================
 // DOM refs
@@ -529,8 +590,24 @@ function buildBuckets(rows) {
   const unknownDecisions = {};   // efnis → "own" | "einka"
   const knownDecisions = {};     // efnis → "own" (keep bucket) | "einka"
 
-  // Unknown Efniseigendur ≥ threshold → ask whether to give own bucket
+  // mergeDecisions: efnis → bucketName (used by finalizeBuckets to route to the merged bucket)
+  const mergeDecisions = {};
+
+  // Unknown Efniseigendur — first try fuzzy match against existing mapping to detect name variants
   for (const [efnis, sum] of Object.entries(unknownAgg)) {
+    const match = findSimilarMapping(efnis, state.mapping);
+    if (match && match.score === 1) {
+      // Normalized-identical — auto-merge silently, remember alias
+      mergeDecisions[efnis] = match.bucket;
+      state.mapping[normKey(efnis)] = { bucket: match.bucket, group: "fura" };
+      saveMapping();
+      continue;
+    }
+    if (match && match.score >= 0.85) {
+      // Fuzzy-similar — ask user to confirm merge
+      questions.push({ type: "similar-unknown", efnis, sum, match });
+      continue;
+    }
     if (sum >= state.threshold) {
       questions.push({ type: "unknown-big", efnis, sum });
     } else {
@@ -548,7 +625,7 @@ function buildBuckets(rows) {
     }
   }
 
-  return { perRow, unknownAgg, knownAgg, questions, unknownDecisions, knownDecisions };
+  return { perRow, unknownAgg, knownAgg, questions, unknownDecisions, knownDecisions, mergeDecisions };
 }
 
 // Málmar question flow
@@ -614,7 +691,7 @@ function einkaBucketName() {
   return state.material === "dekk" ? "Einkaðili" : "Einka";
 }
 
-function finalizeBuckets(perRow, unknownDecisions, knownDecisions, excludedIndices = new Set()) {
+function finalizeBuckets(perRow, unknownDecisions, knownDecisions, excludedIndices = new Set(), mergeDecisions = {}) {
   const buckets = {};
   const einkaItems = [];
   const EINKA = einkaBucketName();
@@ -625,13 +702,19 @@ function finalizeBuckets(perRow, unknownDecisions, knownDecisions, excludedIndic
     let bucket, group;
 
     if (cls.unknown) {
-      const decision = unknownDecisions[row.efnis];
-      if (decision === "einka") {
-        bucket = EINKA;
+      // Merge takes priority — route to the chosen existing bucket
+      if (mergeDecisions[row.efnis]) {
+        bucket = mergeDecisions[row.efnis];
         group = "fura";
       } else {
-        bucket = row.efnis;
-        group = "fura";
+        const decision = unknownDecisions[row.efnis];
+        if (decision === "einka") {
+          bucket = EINKA;
+          group = "fura";
+        } else {
+          bucket = row.efnis;
+          group = "fura";
+        }
       }
     } else if (cls.unknownSorpa) {
       bucket = `Sorpa-${row.verk || row.athug || "?"}`;
@@ -791,6 +874,7 @@ async function handleFile(file) {
     state.pendingQuestions = questions;
     state.unknownDecisions = built.unknownDecisions;
     state.knownDecisions = built.knownDecisions || {};
+    state.mergeDecisions = built.mergeDecisions || {};
     state.excludedIndices = new Set();
     state.perRow = built.perRow;
 
@@ -846,6 +930,34 @@ function askNextQuestion() {
         }
       },
     ]);
+  } else if (q.type === "similar-unknown") {
+    const pctMatch = Math.round(q.match.score * 100);
+    botSay(
+      `Nýr Efniseigandi: <b>${q.efnis}</b> (${fmt(q.sum)} kg).<br>` +
+      `Lítur svipað út og <b>${q.match.key}</b> → ${q.match.bucket}-bakki (${pctMatch}% samsvörun).<br>` +
+      `Sameina við ${q.match.bucket}?`
+    );
+    askChoices([
+      { label: `Sameina → ${q.match.bucket}`, variant: "primary", onPick: () => {
+          state.mergeDecisions[q.efnis] = q.match.bucket;
+          state.mapping[normKey(q.efnis)] = { bucket: q.match.bucket, group: "fura" };
+          saveMapping();
+          askNextQuestion();
+        }
+      },
+      { label: "Eigin bakki", onPick: () => {
+          state.unknownDecisions[q.efnis] = "own";
+          state.mapping[normKey(q.efnis)] = { bucket: q.efnis, group: "fura" };
+          saveMapping();
+          askNextQuestion();
+        }
+      },
+      { label: "Setja í Einka", onPick: () => {
+          state.unknownDecisions[q.efnis] = "einka";
+          askNextQuestion();
+        }
+      },
+    ]);
   } else if (q.type === "known-small") {
     botSay(
       `<b>${q.bucket}</b> (${q.efnis}) með aðeins <b>${fmt(q.sum)} kg</b> — undir þröskuldinum ${fmt(state.threshold)}. Halda sínum bakka eða setja í Einka í þetta skipti?`
@@ -866,7 +978,7 @@ function askNextQuestion() {
 }
 
 function finishPipeline() {
-  const { buckets, einkaItems } = finalizeBuckets(state.perRow, state.unknownDecisions, state.knownDecisions, state.excludedIndices);
+  const { buckets, einkaItems } = finalizeBuckets(state.perRow, state.unknownDecisions, state.knownDecisions, state.excludedIndices, state.mergeDecisions);
   state.classified = { buckets, einkaItems };
   renderBucketsTable(buckets);
 
