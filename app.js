@@ -240,7 +240,7 @@ const MALMAR_BUCKETS = [
   "Hornafjörður", "Málmar og partar / Ísafjörður",
   "Djúpivogur", "Seyðisfjörður", "Borgarfjörður Eystri",
   "Breiðdalshreppur", "Vopnafjörður", "Hvammstangi/Hjalti",
-  "E.E. Export", "Ýmsir",
+  "Ýmsir",
 ];
 
 // Málmar notar annan placeholder-mapping af því að flokkunin er sérstök
