@@ -143,28 +143,29 @@ const TIMBUR_MAPPING = {
 //   - "1. Bíll" færslur → grúppast eftir EFNISEIGANDI (eigandi bílsins)
 //   - Allar aðrar efnislýsingar → grúppast eftir FLUTNINGSAÐILA
 
-// Efnislýsing → dálkur (E=Bílar, F=Rafgeymar, G=Hvarfakútar, H=Góðmálmar, I=Stór heimilistæki, J=Annað brotajárn)
-// Óþekktar efnislýsingar sem eru EKKI útilokaðar lenda sjálfkrafa í J (Annað brotajárn).
+// Efnislýsing → dálkur (E=Bílar, F=Rafgeymar, G=Hvarfakútar, H=Spennar, I=Góðmálmar, J=Stór heimilistæki, K=Annað brotajárn)
+// Óþekktar efnislýsingar sem eru EKKI útilokaðar lenda sjálfkrafa í K (Annað brotajárn).
 const MALMAR_EFNIS_TO_COL = {
   "1. bíll": "E",
-  "1 bíll - vaka": "E",   // afbrigði — flokkað í E og Vaka-bakka
+  "1 bíll - vaka": "E",
   "rafgeymar": "F",
   "hvarfakútar stórir": "G",
   "hvarfakútar litlir": "G",
-  "ál": "H", "álfelgur": "H", "álkapall": "H", "álvír": "H",
-  "kopar": "H", "koparvír": "H", "koparvír gamall": "H", "koparskinnur": "H",
-  "óskrældur koparkapall": "H", "messing": "H", "messing svarf": "H",
-  "kopar svarf": "H", "blý": "H", "zink": "H",
-  "ryðfrítt stál": "H", "ryðfrítt svarf": "H",
-  "rafmótorar - inn": "H", "kapalkefli": "H",
-  "jarðkapall": "H", "prentplötur": "H",
-  "stór heimilistæki": "I",
-  // Annað brotajárn (J) — allir þekktir "rusl" flokkar
-  "járn": "J", "járn umb. - gaskútar": "J", "járn umb. - tunnur": "J",
-  "þungt efni": "J", "hitaveiturör": "J", "postulín": "J", "spennar": "J",
-  "rusl": "J", "járn -  ekki greitt": "J", "járn - ekki greitt": "J",
-  "frystigámar": "J", "rúta": "J", "toghlerar": "J", "yleiningar": "J",
-  "bambar": "J", "element": "J", "togvír": "J",
+  "spennar": "H",  // nýr sér-dálkur frá 2026
+  "ál": "I", "álfelgur": "I", "álkapall": "I", "álvír": "I",
+  "kopar": "I", "koparvír": "I", "koparvír gamall": "I", "koparskinnur": "I",
+  "óskrældur koparkapall": "I", "messing": "I", "messing svarf": "I",
+  "kopar svarf": "I", "blý": "I", "zink": "I",
+  "ryðfrítt stál": "I", "ryðfrítt svarf": "I",
+  "rafmótorar - inn": "I", "kapalkefli": "I",
+  "jarðkapall": "I", "prentplötur": "I",
+  "stór heimilistæki": "J",
+  // Annað brotajárn (K) — allir þekktir "rusl" flokkar
+  "járn": "K", "járn umb. - gaskútar": "K", "járn umb. - tunnur": "K",
+  "þungt efni": "K", "hitaveiturör": "K", "postulín": "K",
+  "rusl": "K", "járn -  ekki greitt": "K", "járn - ekki greitt": "K",
+  "frystigámar": "K", "rúta": "K", "toghlerar": "K", "yleiningar": "K",
+  "bambar": "K", "element": "K", "togvír": "K",
 };
 
 // Útiloka alfarið — útflutningur, "út"-færslur, þjónustugjöld, ekki málmar
@@ -183,7 +184,7 @@ const MALMAR_EFNIS_EXCLUDE = new Set([
 ]);
 
 // Default: óþekkt efnislýsing (ekki í TO_COL né EXCLUDE) → J (annað brotajárn)
-const MALMAR_UNKNOWN_DEFAULT_COL = "J";
+const MALMAR_UNKNOWN_DEFAULT_COL = "K";
 
 // Efniseigandi → bucket (notaður FYRST — ef Efnis matchar, grúppast rófærslan hingað)
 // Þetta er fyrir "svæðisbakka" sem taka allt frá tilteknum eiganda óháð Flutningsaðila.
@@ -757,7 +758,7 @@ function renderMalmarPreview(buckets) {
       if (b === "Bílar og varahlutir") rows.push(`<tr class="group-head"><td colspan="4"><i>${b}</i></td></tr>`);
       continue;
     }
-    const K = (info.E||0)+(info.F||0)+(info.G||0)+(info.H||0)+(info.I||0)+(info.J||0);
+    const K = (info.E||0)+(info.F||0)+(info.G||0)+(info.H||0)+(info.I||0)+(info.J||0)+(info.K||0);
     totalK += K;
     if (K === 0 && info.trips === 0) continue;
     rows.push(`<tr><td>${b}</td><td class="v">${info.trips || 0}</td><td class="v">${info.carCount || 0}</td><td class="v">${fmt(K)}</td></tr>`);
@@ -1093,7 +1094,7 @@ function groupMalmarBuckets(classified) {
   // Build bucket → { trips(C), carCount(D), E,F,G,H,I,J, rows[] }
   const buckets = {};
   for (const b of MALMAR_BUCKETS) {
-    buckets[b] = { trips: 0, carCount: 0, E:0, F:0, G:0, H:0, I:0, J:0, rows: [] };
+    buckets[b] = { trips: 0, carCount: 0, E:0, F:0, G:0, H:0, I:0, J:0, K:0, rows: [] };
   }
   for (const row of classified) {
     const b = buckets[row.bucket] || buckets["Ýmsir"];
@@ -1142,7 +1143,7 @@ async function buildMalmarOutput() {
   const monthNameNice = monthName.charAt(0) + monthName.slice(1).toLowerCase();
   const ws = wb.addWorksheet(monthNameNice, { views: [{ showGridLines: false }] });
 
-  // Column widths matching master EXACTLY
+  // Column widths matching master EXACTLY (nýtt layout 2026 — Spennar bætt við sem H)
   ws.getColumn(1).width = 3.43;    // A
   ws.getColumn(2).width = 27.86;   // B — Flutningsaðili
   ws.getColumn(3).width = 8;       // C — Fjöldi ferða
@@ -1150,13 +1151,14 @@ async function buildMalmarOutput() {
   ws.getColumn(5).width = 11;      // E — Þyngd bíla
   ws.getColumn(6).width = 10.43;   // F — Rafgeymar
   ws.getColumn(7).width = 11.14;   // G — Hvarfakútar
-  ws.getColumn(8).width = 10.71;   // H — Góð-málmar
-  ws.getColumn(9).width = 12.43;   // I — Stór heimilistæki
-  ws.getColumn(10).width = 11.29;  // J — Annað Brotajárn
-  ws.getColumn(11).width = 12;     // K — Heildarþyngd
-  ws.getColumn(12).width = 11;     // L — Meðalþungi
-  ws.getColumn(13).width = 10.29;  // M — Staða
-  ws.getColumn(14).width = 11;     // N — % breyting
+  ws.getColumn(8).width = 10;      // H — Spennar (NÝTT)
+  ws.getColumn(9).width = 10.71;   // I — Góð-málmar
+  ws.getColumn(10).width = 12.43;  // J — Stór heimilistæki
+  ws.getColumn(11).width = 11.29;  // K — Annað Brotajárn
+  ws.getColumn(12).width = 12;     // L — Heildarþyngd
+  ws.getColumn(13).width = 11;     // M — Meðalþungi
+  ws.getColumn(14).width = 10.29;  // N — Staða
+  ws.getColumn(15).width = 11;     // O — % breyting
 
   // Row 1 — title
   const b1 = ws.getCell("B1");
@@ -1172,8 +1174,8 @@ async function buildMalmarOutput() {
   f1.font = { name: "Calibri", size: 10, bold: true };
   f1.alignment = { vertical: "center" };
 
-  // Row 2 — headers (M2:N2 merged in master)
-  ws.mergeCells("M2:N2");
+  // Row 2 — headers (N2:O2 merged í nýja layoutinu)
+  ws.mergeCells("N2:O2");
   const headerStyle = cell => {
     cell.font = { name: "Calibri", size: 11, bold: true };
     cell.alignment = { horizontal: "center", vertical: "center", wrapText: true };
@@ -1182,9 +1184,9 @@ async function buildMalmarOutput() {
   };
   const headers = {
     B2: "Flutningsaðili:", C2: "Fjöldi ferða", D2: "Bílar fjöldi", E2: "Þyngd bíla",
-    F2: "Rafgeymar", G2: "Hvarfakútar", H2: "Góð-málmar", I2: "Stór heimilistæki",
-    J2: "Annað Brotajárn", K2: "Heildar-þyngd kg.", L2: "Meðal-þungi / kg",
-    M2: "Staða m.v. síðasta mánuð",
+    F2: "Rafgeymar", G2: "Hvarfakútar", H2: "Spennar", I2: "Góð-málmar",
+    J2: "Stór heimilistæki", K2: "Annað Brotajárn", L2: "Heildar-þyngd kg.",
+    M2: "Meðal-þungi / kg", N2: "Staða m.v. síðasta mánuð",
   };
   for (const [addr, val] of Object.entries(headers)) {
     const c = ws.getCell(addr);
@@ -1225,9 +1227,10 @@ async function buildMalmarOutput() {
         [`E${r}`, b.E || 0, "#,##0"],
         [`F${r}`, b.F || 0, "#,##0"],
         [`G${r}`, b.G || 0, "#,##0"],
-        [`H${r}`, b.H || 0, "#,##0"],
-        [`I${r}`, b.I || 0, "#,##0"],
-        [`J${r}`, b.J || 0, "#,##0"],
+        [`H${r}`, b.H || 0, "#,##0"],  // Spennar (nýtt)
+        [`I${r}`, b.I || 0, "#,##0"],  // Góðmálmar
+        [`J${r}`, b.J || 0, "#,##0"],  // Stór heimilistæki
+        [`K${r}`, b.K || 0, "#,##0"],  // Annað brotajárn
       ];
       for (const [addr, val, fmt] of cells) {
         const c = ws.getCell(addr);
@@ -1237,22 +1240,22 @@ async function buildMalmarOutput() {
         c.numFmt = fmt;
         c.border = styleBorder("thin");
       }
-      // K = heildarþyngd = SUM(E:J)
-      const k = ws.getCell(`K${r}`);
-      k.value = { formula: `SUM(E${r}:J${r})` };
-      k.font = { name: "Calibri", size: 10, bold: true };
-      k.alignment = { horizontal: "center", vertical: "center" };
-      k.numFmt = "#,##0";
-      k.border = styleBorder("thin");
-      // L = meðalþungi = K/C
+      // L = heildarþyngd = SUM(E:K)
       const l = ws.getCell(`L${r}`);
-      l.value = { formula: `IF(C${r}=0,0,K${r}/C${r})` };
-      l.font = { name: "Calibri", size: 10 };
+      l.value = { formula: `SUM(E${r}:K${r})` };
+      l.font = { name: "Calibri", size: 10, bold: true };
       l.alignment = { horizontal: "center", vertical: "center" };
-      l.numFmt = "#,##0.00";
+      l.numFmt = "#,##0";
       l.border = styleBorder("thin");
-      // M/N = compare to prev month
-      const currentK = (b.E||0)+(b.F||0)+(b.G||0)+(b.H||0)+(b.I||0)+(b.J||0);
+      // M = meðalþungi = L/C
+      const m = ws.getCell(`M${r}`);
+      m.value = { formula: `IF(C${r}=0,0,L${r}/C${r})` };
+      m.font = { name: "Calibri", size: 10 };
+      m.alignment = { horizontal: "center", vertical: "center" };
+      m.numFmt = "#,##0.00";
+      m.border = styleBorder("thin");
+      // N/O = compare to prev month
+      const currentK = (b.E||0)+(b.F||0)+(b.G||0)+(b.H||0)+(b.I||0)+(b.J||0)+(b.K||0);
       const prevK = (prevSnapshot[bname] && prevSnapshot[bname].K) || 0;
       let status = "Jafnt";
       let pct = "-";
@@ -1261,17 +1264,17 @@ async function buildMalmarOutput() {
         else if (currentK < prevK) status = "Lægra";
         if (prevK > 0) pct = (currentK - prevK) / prevK;
       }
-      const m = ws.getCell(`M${r}`);
-      m.value = status;
-      m.font = { name: "Calibri", size: 10 };
-      m.alignment = { horizontal: "center", vertical: "center" };
-      m.border = styleBorder("thin");
       const n = ws.getCell(`N${r}`);
-      n.value = pct;
+      n.value = status;
       n.font = { name: "Calibri", size: 10 };
       n.alignment = { horizontal: "center", vertical: "center" };
-      if (typeof pct === "number") n.numFmt = "0.00%";
       n.border = styleBorder("thin");
+      const o = ws.getCell(`O${r}`);
+      o.value = pct;
+      o.font = { name: "Calibri", size: 10 };
+      o.alignment = { horizontal: "center", vertical: "center" };
+      if (typeof pct === "number") o.numFmt = "0.00%";
+      o.border = styleBorder("thin");
     }
     r++;
   }
@@ -1285,7 +1288,7 @@ async function buildMalmarOutput() {
   sB.alignment = { horizontal: "right", vertical: "center" };
   sB.fill = { type: "pattern", pattern: "solid", fgColor: { argb: MALMAR_COLORS.samtalsFill } };
   sB.border = styleBorder("medium");
-  for (const col of ["C","D","E","F","G","H","I","J","K"]) {
+  for (const col of ["C","D","E","F","G","H","I","J","K","L"]) {
     const c = ws.getCell(`${col}${sRow}`);
     c.value = { formula: `SUM(${col}${firstDataRow}:${col}${lastDataRow})` };
     c.font = { name: "Calibri", size: 11, bold: true };
@@ -1294,13 +1297,13 @@ async function buildMalmarOutput() {
     c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: MALMAR_COLORS.samtalsFill } };
     c.border = styleBorder("medium");
   }
-  const sL = ws.getCell(`L${sRow}`);
-  sL.value = { formula: `IF(C${sRow}=0,0,K${sRow}/C${sRow})` };
-  sL.font = { name: "Calibri", size: 11, bold: true };
-  sL.alignment = { horizontal: "center", vertical: "center" };
-  sL.numFmt = "#,##0.00";
-  sL.fill = { type: "pattern", pattern: "solid", fgColor: { argb: MALMAR_COLORS.samtalsFill } };
-  sL.border = styleBorder("medium");
+  const sM = ws.getCell(`M${sRow}`);
+  sM.value = { formula: `IF(C${sRow}=0,0,L${sRow}/C${sRow})` };
+  sM.font = { name: "Calibri", size: 11, bold: true };
+  sM.alignment = { horizontal: "center", vertical: "center" };
+  sM.numFmt = "#,##0.00";
+  sM.fill = { type: "pattern", pattern: "solid", fgColor: { argb: MALMAR_COLORS.samtalsFill } };
+  sM.border = styleBorder("medium");
 
   // "Meðalfjöldi ferða á dag:" row
   r++;
@@ -1316,10 +1319,10 @@ async function buildMalmarOutput() {
   aC.alignment = { horizontal: "center" };
   aC.numFmt = "0.00";
 
-  // Save snapshot for next month
+  // Save snapshot for next month — K here = "heildarþyngd" (sum of all weight columns)
   const snapshot = {};
   for (const [name, b] of Object.entries(buckets)) {
-    const K = (b.E||0)+(b.F||0)+(b.G||0)+(b.H||0)+(b.I||0)+(b.J||0);
+    const K = (b.E||0)+(b.F||0)+(b.G||0)+(b.H||0)+(b.I||0)+(b.J||0)+(b.K||0);
     snapshot[name] = { K, trips: b.trips || 0 };
   }
   try {
